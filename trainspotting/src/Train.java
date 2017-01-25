@@ -123,6 +123,17 @@ public class Train extends Thread {
 							  tsi.setSwitch(15, 9, tsi.SWITCH_LEFT);
 						  }
 					  }
+				  }
+				  
+				  if (sEvent.getXpos() == 16 && sEvent.getYpos() == 8) {
+					  if (headingNorth) {
+						  sem[2].release();
+					  } else {
+						  tsi.setSpeed(id,0);			
+						  sem[2].acquire();
+						  tsi.setSpeed(id, speed);
+						  tsi.setSwitch(15, 9, tsi.SWITCH_LEFT);
+					  }
 				
 				  } 
 				  
@@ -149,18 +160,54 @@ public class Train extends Thread {
 					  }
 				  } 
 				  
-				  //blip
+				  
 				  if (sEvent.getXpos() == 6 && sEvent.getYpos() == 9) {
 					  if (headingNorth) {
-						  if (sem[3].tryAcquire()) {
-							  tsi.setSwitch(4, 9, tsi.SWITCH_LEFT);
-						  } else {
-							  tsi.setSwitch(4, 9, tsi.SWITCH_RIGHT);
-						  }
+						  sem[4].release();
 					  } else {
-						  sem[3].release();
+						  tsi.setSpeed(id,0);			
+						  sem[4].acquire();
+						  tsi.setSpeed(id, speed);
+						  tsi.setSwitch(4, 9, tsi.SWITCH_LEFT);
 					  }	
 				  } 
+				  
+				  if (sEvent.getXpos() == 5 && sEvent.getYpos() == 11) {
+					  if (headingNorth) {
+						  tsi.setSpeed(id,0);			
+						  sem[4].acquire();
+						  tsi.setSpeed(id, speed);
+						  tsi.setSwitch(3, 11, tsi.SWITCH_LEFT);
+					  } else {
+						  sem[4].release();
+					  }	
+				  } 
+				  
+				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 11) {
+					  if (!headingNorth) {
+						  changeDir();
+					  }	
+				  } 
+				  
+				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 13) {
+					  if (!headingNorth) {
+						  changeDir();
+					  }	
+				  } 
+				  
+				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 3) {
+					  if (headingNorth) {
+						  changeDir();
+					  }	
+				  } 
+				  
+				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 5) {
+					  if (headingNorth) {
+						  changeDir();
+					  }	
+				  } 
+				  
+				  
 				  
 				  //blop
 				  if (sEvent.getXpos() == 5 && sEvent.getYpos() == 10) {
@@ -209,6 +256,12 @@ public class Train extends Thread {
 			    }    
 		}
 	}
+	
+	private void changeDir() {
+		speed = -speed;
+		headingNorth ^= true;
+	}
+	
 	/**
 	private void hej(SensorEvent e, int xPos, int yPos) {
 		
