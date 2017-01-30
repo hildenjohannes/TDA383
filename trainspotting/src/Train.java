@@ -11,53 +11,13 @@ public class Train extends Thread {
 	private int speed;
 	private static Semaphore [] sem;
 	private TSimInterface tsi = TSimInterface.getInstance();
-	private List<Position> posList;
+	private boolean[] hasSemaphore;
 	private boolean headingNorth;
-
-	private class Position {
-
-		public int x;
-		public int y;
-
-		public Position (int xPos, int yPos) {
-			this.x = xPos;
-			this.y = yPos;
-		}
-
-		public boolean equals(Object other) {
-			if (other == null) {
-				return false;
-			} else if (other == this) {
-				return true;
-			} else if (!(other instanceof Position)) {
-				return false;
-			} else {
-				return (((Position)other).x == this.x && ((Position)other).y == this.y);
-			}
-		}
-	}
-	
-	private class RealSemaphore extends Semaphore {
-		public RealSemaphore(int permits) {
-			super(permits);
-		}
-		
-		public RealSemaphore(int permits, boolean fair) {
-			super(permits,fair);
-		}
-		
-		@Override
-		public synchronized void release() {
-			if (super.availablePermits() == 0) {
-				super.release();
-			} 
-		}
-	}
 
 	public Train (int id, int speed) {
 		this.id = id;
 		this.speed = speed;
-		this.posList = new ArrayList<Position>();
+		this.hasSemaphore = new boolean[6];
 
 		if (id == 1) {
 			headingNorth = false;
@@ -66,52 +26,12 @@ public class Train extends Thread {
 		}
 
 		if (sem == null) {
-			sem = new RealSemaphore [6];
+			sem = new Semaphore [6];
 			for (int i = 0; i < 6; i++) {
-				sem[i] = new RealSemaphore(1);
+				sem[i] = new Semaphore(1);
 			}
 		}
 		
-		sem[1].release();
-		sem[1].release();
-		sem[1].release();
-		sem[1].release();
-		sem[1].release();
-		sem[1].release();
-		sem[1].release();
-		
-		System.out.println("HEJ: " + sem[1].availablePermits());
-/**
-		posList.add(new Position(14,3));
-
-		posList.add(new Position(8,5));
-		posList.add(new Position(14,5));
-
-		posList.add(new Position(6,7));
-		posList.add(new Position(10,7));
-
-		posList.add(new Position(15,7));
-		posList.add(new Position(19,7));
-
-		posList.add(new Position(9,8));
-		posList.add(new Position(16,8));
-
-		posList.add(new Position(2,9));
-		posList.add(new Position(6,9));
-		posList.add(new Position(13,9));
-		posList.add(new Position(17,9));
-
-		posList.add(new Position(5,10));
-		posList.add(new Position(14,10));
-
-		posList.add(new Position(1,11));
-		posList.add(new Position(5,11));
-		posList.add(new Position(14,11));
-
-		posList.add(new Position(3,13));
-		posList.add(new Position(14,13));
-*/
-
 		try {
 	      tsi.setSpeed(id,speed);
 	    }
@@ -130,92 +50,70 @@ public class Train extends Thread {
 
 				  if (sEvent.getXpos() == 15 && sEvent.getYpos() == 7) {
 					  if (headingNorth) {
-						  sem[2].release();
+						  leaveSection(2);
 					  } else {
-						  tsi.setSpeed(id,0);
-						  sem[2].acquire();
-						  tsi.setSpeed(id, speed);
-						  tsi.setSwitch(17, 7, tsi.SWITCH_RIGHT);
+						  enterSectionAndSwitch(2, 17, 7, tsi.SWITCH_RIGHT);
 					  }
-
 				  }
 
-				  if (sEvent.getXpos() == 17 && sEvent.getYpos() == 9) {
+				  if (sEvent.getXpos() == 18 && sEvent.getYpos() == 9) {
 					  if (headingNorth) {
-						  sem[3].release();
+						  leaveSection(3);
 					  } else {
-						  if (sem[3].tryAcquire()) {
-							  tsi.setSwitch(15, 9, tsi.SWITCH_RIGHT);
-						  } else {
-							  tsi.setSwitch(15, 9, tsi.SWITCH_LEFT);
-						  }
+						  enterAtTrackSplit(3, 15, 9, tsi.SWITCH_RIGHT, tsi.SWITCH_LEFT);
 					  }
 				  }
 				  
 				  if (sEvent.getXpos() == 15 && sEvent.getYpos() == 8) {
 					  if (headingNorth) {
-						  sem[2].release();
+						  leaveSection(2);
 					  } else {
-						  tsi.setSpeed(id,0);			
-						  sem[2].acquire();
-						  tsi.setSpeed(id, speed);
-						  tsi.setSwitch(17, 7, tsi.SWITCH_LEFT);
+						  enterSectionAndSwitch(2, 17, 7, tsi.SWITCH_LEFT);
 					  }
-				
 				  } 
 				  
 
 				  if (sEvent.getXpos() == 13 && sEvent.getYpos() == 10) {
 					  if (headingNorth) {
-						  tsi.setSpeed(id,0);
-						  sem[2].acquire();
-						  tsi.setSpeed(id, speed);
-						  tsi.setSwitch(15, 9, tsi.SWITCH_LEFT);
+						  enterSectionAndSwitch(2, 15, 9, tsi.SWITCH_LEFT);
 					  } else {
-						  sem[2].release();
+						  leaveSection(2);
 					  }
 				  }
 
 				  if (sEvent.getXpos() == 2 && sEvent.getYpos() == 9) {
-					  System.out.println(headingNorth + " - " + sem[3].availablePermits());
 					  if (headingNorth) {
-						  if (sem[3].tryAcquire()) {
-							  tsi.setSwitch(4, 9, tsi.SWITCH_LEFT);
-						  } else {
-							  tsi.setSwitch(4, 9, tsi.SWITCH_RIGHT);
-						  }
+						  enterAtTrackSplit(3, 4, 9, tsi.SWITCH_LEFT, tsi.SWITCH_RIGHT);
 					  } else {
-						  sem[3].release();
+						  leaveSection(3);
 					  }
 				  }
 
-				  
 				  if (sEvent.getXpos() == 7 && sEvent.getYpos() == 9) {
 					  if (headingNorth) {
-						  sem[4].release();
+						  leaveSection(4);
 					  } else {
-						  tsi.setSpeed(id,0);			
-						  sem[4].acquire();
-						  tsi.setSpeed(id, speed);
-						  tsi.setSwitch(4, 9, tsi.SWITCH_LEFT);
+						  enterSectionAndSwitch(4, 4, 9, tsi.SWITCH_LEFT);
 					  }	
 				  } 
 				  
 				  if (sEvent.getXpos() == 5 && sEvent.getYpos() == 11) {
 					  if (headingNorth) {
-						  tsi.setSpeed(id,0);			
-						  sem[4].acquire();
-						  tsi.setSpeed(id, speed);
-						  tsi.setSwitch(3, 11, tsi.SWITCH_LEFT);
+						  enterSectionAndSwitch(4, 3, 11, tsi.SWITCH_LEFT);
 					  } else {
-						  sem[4].release();
+						  leaveSection(4);
 					  }	
 				  } 
 				  
 				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 11) {
 					  if (!headingNorth) {
 						  changeDir();
-					  }	
+					  }	else {
+						  if (!hasSemaphore[5]) {
+							  sem[5].tryAcquire();
+							  hasSemaphore[5] = true;
+						  } 
+					  }
 				  } 
 				  
 				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 13) {
@@ -227,7 +125,12 @@ public class Train extends Thread {
 				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 3) {
 					  if (headingNorth) {
 						  changeDir();
-					  }	
+					  }	else {
+						  if (!hasSemaphore[0]) {
+							  sem[0].tryAcquire();
+							  hasSemaphore[0] = true;
+						  }
+					  }
 				  } 
 				  
 				  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 5) {
@@ -236,106 +139,79 @@ public class Train extends Thread {
 					  }	
 				  } 
 				  
-				  
 				  if (sEvent.getXpos() == 6 && sEvent.getYpos() == 10) {
 					  if (headingNorth) {
-						  sem[4].release();
+						  leaveSection(4);
 					  } else {
-							tsi.setSpeed(id,0);
-						  sem[4].acquire();
-						  tsi.setSpeed(id, speed);
-						  tsi.setSwitch(4, 9, tsi.SWITCH_RIGHT);
+						  enterSectionAndSwitch(4, 4, 9, tsi.SWITCH_RIGHT);
 					  }
 				  }
 
 					if (sEvent.getXpos() == 1 && sEvent.getYpos() == 11) {
 						if (headingNorth) {
-							sem[5].release();
+							leaveSection(5);
 						} else {
-							if (sem[5].tryAcquire()) {
-							  tsi.setSwitch(3, 11, tsi.SWITCH_LEFT);
-						  } else {
-							  tsi.setSwitch(3, 11, tsi.SWITCH_RIGHT);
-						  }
+							enterAtTrackSplit(5, 3, 11, tsi.SWITCH_LEFT, tsi.SWITCH_RIGHT);
 						}
 					}
 
-					if (sEvent.getXpos() == 3 && sEvent.getYpos() == 13) {
+					if (sEvent.getXpos() == 4 && sEvent.getYpos() == 13) {
 						if (headingNorth) {
-							tsi.setSpeed(id,0);
- 						 	sem[4].acquire();
- 						 	tsi.setSpeed(id, speed);
- 						 	tsi.setSwitch(3, 11, tsi.SWITCH_RIGHT);
+							enterSectionAndSwitch(4, 3, 11, tsi.SWITCH_RIGHT);
 						} else {
-							sem[4].release();
+							leaveSection(4);
 						}
 					}
 
 					if (sEvent.getXpos() == 10 && sEvent.getYpos() == 7) {
 						if (headingNorth) {
-							tsi.setSpeed(id,0);
- 						 	sem[1].acquire();
- 						 	tsi.setSpeed(id, speed);
+							enterSection(1);
 						} else {
-							sem[1].release();
+							leaveSection(1);
 						}
 					}
 
 					if (sEvent.getXpos() == 10 && sEvent.getYpos() == 8) {
 						if (headingNorth) {
-							tsi.setSpeed(id,0);
- 						 	sem[1].acquire();
- 						 	tsi.setSpeed(id, speed);
+							enterSection(1);
 						} else {
-							sem[1].release();
+							leaveSection(1);
 						}
 					}
 
 					if (sEvent.getXpos() == 6 && sEvent.getYpos() == 7) {
 						if (headingNorth) {
-							sem[1].release();
+							leaveSection(1);
 						} else {
-							tsi.setSpeed(id,0);
- 						 	sem[1].acquire();
- 						 	tsi.setSpeed(id, speed);
+							enterSection(1);
 						}
 					}
 
 					if (sEvent.getXpos() == 8 && sEvent.getYpos() == 5) {
 						if (headingNorth) {
-							sem[1].release();
+							leaveSection(1);
 						} else {
-							tsi.setSpeed(id,0);
- 						 	sem[1].acquire();
- 						 	tsi.setSpeed(id, speed);
+							enterSection(1);
 						}
 					}
-
 
 				  if (sEvent.getXpos() == 12 && sEvent.getYpos() == 9) {
 
 					  if (headingNorth) {
-						  tsi.setSpeed(id,0);
-						  sem[2].acquire();
-						  tsi.setSpeed(id, speed);
-						  tsi.setSwitch(15, 9, tsi.SWITCH_RIGHT);
+						  enterSectionAndSwitch(2, 15, 9, tsi.SWITCH_RIGHT);
 					  } else {
-						  sem[2].release();
+						  leaveSection(2);
 					  }
-
 
 				  }
 				  if ((sEvent.getXpos() == 19 && sEvent.getYpos() == 7)) {
 					  if (headingNorth) {
-						  if (sem[0].tryAcquire()) {
-							  tsi.setSwitch(17, 7, tsi.SWITCH_RIGHT);
-						  } else {
-							  tsi.setSwitch(17, 7, tsi.SWITCH_LEFT);
-						  }
+						  enterAtTrackSplit(0, 17, 7, tsi.SWITCH_RIGHT, tsi.SWITCH_LEFT);
 					  } else {
-						 sem[0].release();
+						  leaveSection(0);
 					  }
 				  }
+				  
 				}
 
 			    }
@@ -344,6 +220,33 @@ public class Train extends Thread {
 			      System.exit(1);
 			    }
 		}
+	}
+	
+	private void enterSection (int sectionId) throws CommandException, InterruptedException {
+		tsi.setSpeed(id,0);			
+		sem[sectionId].acquire();
+		tsi.setSpeed(id, speed);
+		hasSemaphore[sectionId] = true;
+	}
+	private void enterSectionAndSwitch (int sectionId, int x, int y, int switchOrientation) throws CommandException, InterruptedException {
+		enterSection(sectionId);
+		tsi.setSwitch(x, y, switchOrientation);
+	}
+	
+	private void enterAtTrackSplit (int sectionId, int x, int y, int firstChoiceSwitch, int secondChoiceSwitch) throws CommandException {
+		if (sem[sectionId].tryAcquire()) {
+			  hasSemaphore[sectionId] = true;
+			  tsi.setSwitch(x, y, firstChoiceSwitch);
+		  } else {
+			  tsi.setSwitch(x, y, secondChoiceSwitch);
+		  }
+	}
+	
+	private void leaveSection (int sectionId){
+		if (hasSemaphore[sectionId]) {
+			  sem[sectionId].release();
+			  hasSemaphore[sectionId] = false;
+		  }
 	}
 	
 	private void changeDir() throws CommandException, InterruptedException {
@@ -356,26 +259,5 @@ public class Train extends Thread {
 		} else {
 			headingNorth = true;
 		}
-		//headingNorth ^= true;
 	}
-	
-	/**
-	private void hej(SensorEvent e, int xPos, int yPos) {
-
-		if ((e.getXpos() == xPos && e.getYpos() == yPos) && !headingNorth) {
-			  System.out.println("blablablabl");
-			  tsi.setSpeed(id,0);
-			  System.out.println(sem[2].availablePermits());
-			  sem[2].acquire();
-			  System.out.println("då");
-			  tsi.setSpeed(id, speed);
-			  tsi.setSwitch(17, 7, tsi.SWITCH_RIGHT);
-		  }
-
-
-
-
-
-
-	} */
 }
