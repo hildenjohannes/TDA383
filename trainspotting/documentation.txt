@@ -33,7 +33,7 @@ Sensors are located at the following coordinates:
 4,13
 14,13
 
-The critical sections is between the following sensors:
+The critical sections are between the following sensors:
 Section 0: 14,3 <-> 19,7 (one of the tracks to the upper station)
 Section 1: 8,5 <-> 10,8 and 6,7 <-> 10,7 (crossing nearby upper station)
 Section 2: 15,7 and 15,8 <-> 12,9 and 13,10 (one-tracked railway to the right)

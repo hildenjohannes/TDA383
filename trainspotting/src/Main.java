@@ -1,5 +1,4 @@
 import java.io.IOException;
-
 import TSim.TSimInterface;
 
 public class Main {
@@ -15,7 +14,7 @@ public class Main {
 			Integer train1_speed = Integer.parseInt(args[1]);
 			Integer train2_speed = Integer.parseInt(args[2]);
 			Integer tsim_speed = (args.length >= 4) ? Integer.parseInt(args[3]) : 100;
-			
+
 			String tsimCommand = String.format("/chalmers/groups/tda381/bin/tsim --speed=%d %s", tsim_speed, map);
 			Process p = Runtime.getRuntime().exec(tsimCommand);
 			TSimInterface.init(p.getInputStream(), p.getOutputStream());
@@ -23,7 +22,7 @@ public class Main {
 			new Lab1(train1_speed, train2_speed);
 			// new Lab2(train1_speed, train2_speed);
 			p.waitFor();
-			
+
 		} catch (ArrayIndexOutOfBoundsException e) {
 			System.err.println("Main method expects 3-4 arguments: Lab1.map <Train1Speed> <Train2Speed> [SimulatorSpeed]");
 		} catch (IOException e) {

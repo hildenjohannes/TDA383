@@ -1,6 +1,5 @@
 import java.util.*;
 import java.util.concurrent.Semaphore;
-
 import TSim.CommandException;
 import TSim.TSimInterface;
 import TSim.SensorEvent;
@@ -14,7 +13,7 @@ public class Train extends Thread {
     private int speed;
     private static Semaphore[] sem;
     private TSimInterface tsi = TSimInterface.getInstance();
-    private boolean[] hasSemaphore;
+    private boolean[] hasSemaphore; //trains need to know what semaphores they are holding
     private boolean headingNorth; //direction of train
 
     public Train(int id, int speed) {
@@ -34,194 +33,185 @@ public class Train extends Thread {
                 sem[i] = new Semaphore(1);
             }
         }
-
-        try {
-            tsi.setSpeed(id, speed);
-        } catch (CommandException e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
     }
 
     public void run() {
+      try {
+        tsi.setSpeed(id, speed);
+        e.printStackTrace();
+        System.exit(1);
+
         while (true) {
-            try {
-                SensorEvent sEvent = tsi.getSensor(id);
+              SensorEvent sEvent = tsi.getSensor(id);
+              if (sEvent.getStatus() == sEvent.ACTIVE) { //only active sensors are interesting
+                  if (sEvent.getXpos() == 15 && sEvent.getYpos() == 7) {
+                      if (headingNorth) {
+                          leaveSection(2);
+                      } else {
+                          enterSectionAndSwitch(2, 17, 7, tsi.SWITCH_RIGHT);
+                      }
+                  }
 
-                if (sEvent.getStatus() == sEvent.ACTIVE) { //only active sensors are interesting
+                  if (sEvent.getXpos() == 18 && sEvent.getYpos() == 9) {
+                      if (headingNorth) {
+                          leaveSection(3);
+                      } else {
+                          enterAtTrackSplit(3, 15, 9, tsi.SWITCH_RIGHT, tsi.SWITCH_LEFT);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 15 && sEvent.getYpos() == 7) {
-                        if (headingNorth) {
-                            leaveSection(2);
-                        } else {
-                            enterSectionAndSwitch(2, 17, 7, tsi.SWITCH_RIGHT);
-                        }
-                    }
+                  if (sEvent.getXpos() == 15 && sEvent.getYpos() == 8) {
+                      if (headingNorth) {
+                          leaveSection(2);
+                      } else {
+                          enterSectionAndSwitch(2, 17, 7, tsi.SWITCH_LEFT);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 18 && sEvent.getYpos() == 9) {
-                        if (headingNorth) {
-                            leaveSection(3);
-                        } else {
-                            enterAtTrackSplit(3, 15, 9, tsi.SWITCH_RIGHT, tsi.SWITCH_LEFT);
-                        }
-                    }
+                  if (sEvent.getXpos() == 13 && sEvent.getYpos() == 10) {
+                      if (headingNorth) {
+                          enterSectionAndSwitch(2, 15, 9, tsi.SWITCH_LEFT);
+                      } else {
+                          leaveSection(2);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 15 && sEvent.getYpos() == 8) {
-                        if (headingNorth) {
-                            leaveSection(2);
-                        } else {
-                            enterSectionAndSwitch(2, 17, 7, tsi.SWITCH_LEFT);
-                        }
-                    }
+                  if (sEvent.getXpos() == 2 && sEvent.getYpos() == 9) {
+                      if (headingNorth) {
+                          enterAtTrackSplit(3, 4, 9, tsi.SWITCH_LEFT, tsi.SWITCH_RIGHT);
+                      } else {
+                          leaveSection(3);
+                      }
+                  }
 
+                  if (sEvent.getXpos() == 7 && sEvent.getYpos() == 9) {
+                      if (headingNorth) {
+                          leaveSection(4);
+                      } else {
+                          enterSectionAndSwitch(4, 4, 9, tsi.SWITCH_LEFT);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 13 && sEvent.getYpos() == 10) {
-                        if (headingNorth) {
-                            enterSectionAndSwitch(2, 15, 9, tsi.SWITCH_LEFT);
-                        } else {
-                            leaveSection(2);
-                        }
-                    }
+                  if (sEvent.getXpos() == 5 && sEvent.getYpos() == 11) {
+                      if (headingNorth) {
+                          enterSectionAndSwitch(4, 3, 11, tsi.SWITCH_LEFT);
+                      } else {
+                          leaveSection(4);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 2 && sEvent.getYpos() == 9) {
-                        if (headingNorth) {
-                            enterAtTrackSplit(3, 4, 9, tsi.SWITCH_LEFT, tsi.SWITCH_RIGHT);
-                        } else {
-                            leaveSection(3);
-                        }
-                    }
+                  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 11) {
+                      if (!headingNorth) {
+                          changeDir();
+                      } else {
+                          if (!hasSemaphore[5]) { //fix to lock initial semaphore
+                              sem[5].tryAcquire();
+                              hasSemaphore[5] = true;
+                          }
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 7 && sEvent.getYpos() == 9) {
-                        if (headingNorth) {
-                            leaveSection(4);
-                        } else {
-                            enterSectionAndSwitch(4, 4, 9, tsi.SWITCH_LEFT);
-                        }
-                    }
+                  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 13) {
+                      if (!headingNorth) {
+                          changeDir();
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 5 && sEvent.getYpos() == 11) {
-                        if (headingNorth) {
-                            enterSectionAndSwitch(4, 3, 11, tsi.SWITCH_LEFT);
-                        } else {
-                            leaveSection(4);
-                        }
-                    }
+                  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 3) {
+                      if (headingNorth) {
+                          changeDir();
+                      } else {
+                          if (!hasSemaphore[0]) { //fix to lock initial semaphore
+                              sem[0].tryAcquire();
+                              hasSemaphore[0] = true;
+                          }
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 14 && sEvent.getYpos() == 11) {
-                        if (!headingNorth) {
-                            changeDir();
-                        } else {
-                            if (!hasSemaphore[5]) { //fix to lock initial semaphore
-                                sem[5].tryAcquire();
-                                hasSemaphore[5] = true;
-                            }
-                        }
-                    }
+                  if (sEvent.getXpos() == 14 && sEvent.getYpos() == 5) {
+                      if (headingNorth) {
+                          changeDir();
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 14 && sEvent.getYpos() == 13) {
-                        if (!headingNorth) {
-                            changeDir();
-                        }
-                    }
+                  if (sEvent.getXpos() == 6 && sEvent.getYpos() == 10) {
+                      if (headingNorth) {
+                          leaveSection(4);
+                      } else {
+                          enterSectionAndSwitch(4, 4, 9, tsi.SWITCH_RIGHT);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 14 && sEvent.getYpos() == 3) {
-                        if (headingNorth) {
-                            changeDir();
-                        } else {
-                            if (!hasSemaphore[0]) { //fix to lock initial semaphore
-                                sem[0].tryAcquire();
-                                hasSemaphore[0] = true;
-                            }
-                        }
-                    }
+                  if (sEvent.getXpos() == 1 && sEvent.getYpos() == 11) {
+                      if (headingNorth) {
+                          leaveSection(5);
+                      } else {
+                          enterAtTrackSplit(5, 3, 11, tsi.SWITCH_LEFT, tsi.SWITCH_RIGHT);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 14 && sEvent.getYpos() == 5) {
-                        if (headingNorth) {
-                            changeDir();
-                        }
-                    }
+                  if (sEvent.getXpos() == 4 && sEvent.getYpos() == 13) {
+                      if (headingNorth) {
+                          enterSectionAndSwitch(4, 3, 11, tsi.SWITCH_RIGHT);
+                      } else {
+                          leaveSection(4);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 6 && sEvent.getYpos() == 10) {
-                        if (headingNorth) {
-                            leaveSection(4);
-                        } else {
-                            enterSectionAndSwitch(4, 4, 9, tsi.SWITCH_RIGHT);
-                        }
-                    }
+                  if (sEvent.getXpos() == 10 && sEvent.getYpos() == 7) {
+                      if (headingNorth) {
+                          enterSection(1);
+                      } else {
+                          leaveSection(1);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 1 && sEvent.getYpos() == 11) {
-                        if (headingNorth) {
-                            leaveSection(5);
-                        } else {
-                            enterAtTrackSplit(5, 3, 11, tsi.SWITCH_LEFT, tsi.SWITCH_RIGHT);
-                        }
-                    }
+                  if (sEvent.getXpos() == 10 && sEvent.getYpos() == 8) {
+                      if (headingNorth) {
+                          enterSection(1);
+                      } else {
+                          leaveSection(1);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 4 && sEvent.getYpos() == 13) {
-                        if (headingNorth) {
-                            enterSectionAndSwitch(4, 3, 11, tsi.SWITCH_RIGHT);
-                        } else {
-                            leaveSection(4);
-                        }
-                    }
+                  if (sEvent.getXpos() == 6 && sEvent.getYpos() == 7) {
+                      if (headingNorth) {
+                          leaveSection(1);
+                      } else {
+                          enterSection(1);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 10 && sEvent.getYpos() == 7) {
-                        if (headingNorth) {
-                            enterSection(1);
-                        } else {
-                            leaveSection(1);
-                        }
-                    }
+                  if (sEvent.getXpos() == 8 && sEvent.getYpos() == 5) {
+                      if (headingNorth) {
+                          leaveSection(1);
+                      } else {
+                          enterSection(1);
+                      }
+                  }
 
-                    if (sEvent.getXpos() == 10 && sEvent.getYpos() == 8) {
-                        if (headingNorth) {
-                            enterSection(1);
-                        } else {
-                            leaveSection(1);
-                        }
-                    }
+                  if (sEvent.getXpos() == 12 && sEvent.getYpos() == 9) {
+                      if (headingNorth) {
+                          enterSectionAndSwitch(2, 15, 9, tsi.SWITCH_RIGHT);
+                      } else {
+                          leaveSection(2);
+                      }
 
-                    if (sEvent.getXpos() == 6 && sEvent.getYpos() == 7) {
-                        if (headingNorth) {
-                            leaveSection(1);
-                        } else {
-                            enterSection(1);
-                        }
-                    }
-
-                    if (sEvent.getXpos() == 8 && sEvent.getYpos() == 5) {
-                        if (headingNorth) {
-                            leaveSection(1);
-                        } else {
-                            enterSection(1);
-                        }
-                    }
-
-                    if (sEvent.getXpos() == 12 && sEvent.getYpos() == 9) {
-                        if (headingNorth) {
-                            enterSectionAndSwitch(2, 15, 9, tsi.SWITCH_RIGHT);
-                        } else {
-                            leaveSection(2);
-                        }
-
-                    }
-                    if ((sEvent.getXpos() == 19 && sEvent.getYpos() == 7)) {
-                        if (headingNorth) {
-                            enterAtTrackSplit(0, 17, 7, tsi.SWITCH_RIGHT, tsi.SWITCH_LEFT);
-                        } else {
-                            leaveSection(0);
-                        }
-                    }
-
-                }
-
+                  }
+                  if ((sEvent.getXpos() == 19 && sEvent.getYpos() == 7)) {
+                      if (headingNorth) {
+                          enterAtTrackSplit(0, 17, 7, tsi.SWITCH_RIGHT, tsi.SWITCH_LEFT);
+                      } else {
+                          leaveSection(0);
+                      }
+                  }
+              }
             } catch (CommandException e) {
                 e.printStackTrace();
                 System.exit(1);
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 System.exit(1);
-
             }
         }
     }
