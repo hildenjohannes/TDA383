@@ -2,18 +2,21 @@ import TSim.CommandException;
 import TSim.SensorEvent;
 import TSim.TSimInterface;
 
-import java.util.concurrent.Semaphore;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.concurrent.locks.*;
 
 public class Lab2 {
 
-    private static Semaphore[] sem;
+    private static SectionMonitor[] mon;
 
     public Lab2(Integer speed1, Integer speed2) {
 
-        if (sem == null) {
-            sem = new Semaphore[6];
+        if (mon == null) {
+            mon = new SectionMonitor[6];
             for (int i = 0; i < 6; i++) {
-                sem[i] = new Semaphore(1);
+                mon[i] = new SectionMonitor();
             }
         }
 
@@ -23,6 +26,65 @@ public class Lab2 {
         train2.start();
     }
 
+    private class SectionMonitor {
+
+    	private boolean blocked;
+    	private Lock lock;
+    	private Condition cond;
+    	
+    	public SectionMonitor() {
+    		lock = new ReentrantLock();
+    		cond = lock.newCondition();
+    	}
+    	
+    	public void enter() throws InterruptedException {
+    		
+    		lock.lock();
+    		if (blocked) {
+    			cond.await();
+    		}
+    		blocked = true;
+    		lock.unlock();
+    	}
+    	
+    	public boolean tryEnter() {
+    		lock.lock();
+    		if (!blocked) {
+    			blocked = true;
+    		}
+    		lock.unlock();
+    		return blocked;
+    	}
+    	
+    	public void leave() {
+    		lock.lock();
+    		blocked = false;
+    		
+    		lock.unlock();
+    	}
+    }
+    
+    private class ConditionVar implements Condition {
+    	
+    	Queue q;
+    	
+    	public ConditionVar(){
+    		q = new LinkedList<>();
+    	}
+    	
+    	public void await(){
+    		
+    		
+    	}
+    	
+    	public void signal(){
+    		
+    	}
+    	public boolean isEmpty(){
+    		
+    	}
+    }
+    
     /**
      * A train with an ID and a speed
      */
@@ -31,13 +93,11 @@ public class Lab2 {
         private int id;
         private int speed;
         private TSimInterface tsi = TSimInterface.getInstance();
-        private boolean[] hasSemaphore; //trains need to know what semaphores they are holding
         private boolean headingNorth; //direction of train
 
         public Train(int id, int speed) {
             this.id = id;
             this.speed = speed;
-            this.hasSemaphore = new boolean[6];
 
             if (id == 1) {
                 headingNorth = false;
@@ -116,9 +176,8 @@ public class Lab2 {
                             if (!headingNorth) {
                                 changeDir();
                             } else {
-                                if (!hasSemaphore[5]) { //fix to lock initial semaphore
-                                    sem[5].tryAcquire();
-                                    hasSemaphore[5] = true;
+                                if (!mon[5].blocked) { //fix to lock initial semaphore
+                                    mon[5].enter();
                                 }
                             }
                         }
@@ -133,9 +192,8 @@ public class Lab2 {
                             if (headingNorth) {
                                 changeDir();
                             } else {
-                                if (!hasSemaphore[0]) { //fix to lock initial semaphore
-                                    sem[0].tryAcquire();
-                                    hasSemaphore[0] = true;
+                                if (!mon[0].blocked) { //fix to lock initial semaphore
+                                    mon[0].enter();
                                 }
                             }
                         }
@@ -237,9 +295,8 @@ public class Lab2 {
          */
         private void enterSection(int sectionId) throws CommandException, InterruptedException {
             tsi.setSpeed(id, 0);
-            sem[sectionId].acquire();
+            mon[sectionId].enter();
             tsi.setSpeed(id, speed);
-            hasSemaphore[sectionId] = true;
         }
 
         /**
@@ -270,8 +327,7 @@ public class Lab2 {
          * @throws CommandException Fails to set switch
          */
         private void enterAtTrackSplit(int sectionId, int x, int y, int firstChoiceSwitch, int secondChoiceSwitch) throws CommandException {
-            if (sem[sectionId].tryAcquire()) {
-                hasSemaphore[sectionId] = true;
+            if (mon[sectionId].tryEnter()) {
                 tsi.setSwitch(x, y, firstChoiceSwitch);
             } else {
                 tsi.setSwitch(x, y, secondChoiceSwitch);
@@ -284,10 +340,8 @@ public class Lab2 {
          * @param sectionId The id of the section/semaphore
          */
         private void leaveSection(int sectionId) {
-            if (hasSemaphore[sectionId]) {
-                sem[sectionId].release();
-                hasSemaphore[sectionId] = false;
-            }
+        	mon[sectionId].leave();
+            
         }
 
         /**
