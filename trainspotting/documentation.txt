@@ -1,47 +1,7 @@
-The map has six critical sections, each critical section represented by a semaphore.  When a train is about to enter a critical section it tries to acquire the semaphore. When the train exits the critical section the train releases the semaphore. The train only releases the semaphore if it was the train itself that acquired it. This means that if a train tries to enter a critical section where there already is a another train, the first train has to stop. When the other train has left the critical section the first train is allowed to enter.
+enter(): To enter a critical section and if this is not possible, wait in line until it gets awoken, and then enter.
 
-Since trains are not allowed in the same critical sections they will not crash. Some parts of the train track is not covered be any critical section. At the lower part of the map the train can choose between two tracks to reach the lower train station. The lower track is not covered by any critical section. The train will always default to the upper track (the shortest route), but if there already is a train on the upper track the train will choose the lower track. Since there is only two trains in the program, it is safe to enter the lower track when the upper track is occupied by a train. The same strategy is implemented for the upper station.
+tryEnter(): To try entering a critical section. If this is possible, enter and return true. If not, return false. This method never waits.
 
-A similar strategy is also implemented for the middle section where the railway is double-tracked. The train will always default to the upper track (the shortest route), but if there already is a train on the upper track it will choose the lower track.
+leave(): To leave a critical section and send a signal to awake the first (if any) thread waiting in line for that section.
 
-In this double-tracked middle part of the map there is a possibility for one train to overtake the other train. This is made possible by making the upper part to a critical section (section/semaphore 3). If a train is in this section, the other train will choose the lower track. If it is faster than the first train, it will overtake it.
-
-Some critical sections overlap. This means that trains sometimes hold 2 semaphores for short distances. The reason for this is to allow a train to leave the first critical section without being in the risk of a crash. Example: a train is located in critical section 2, heading for the upper station. At sensor (19,7) the train tries to acquire critical section 0, if it succeeds the train will hold semaphore 0 and 2 until it reaches sensor (15,7) where it releases semaphore 0.
-
-Our solution implements what is referred to a ”stateless solution”. The train does not remember at what position it is, instead events occur depending on which sensor is activated.
-
-
-Sensors are located at the following coordinates:
-14,3
-8,5
-14,5
-6,7
-10,7
-15,7
-19,7
-10,8
-15,8
-2,9
-7,9
-12,9
-18,9
-6,10
-13,10
-1,11
-5,11
-14,11
-4,13
-14,13
-
-The critical sections are between the following sensors:
-Section 0: 14,3 <-> 19,7 (one of the tracks to the upper station)
-Section 1: 8,5 <-> 10,8 and 6,7 <-> 10,7 (crossing nearby upper station)
-Section 2: 15,7 and 15,8 <-> 12,9 and 13,10 (one-tracked railway to the right)
-Section 3: 18,9 <-> 2,9 (double-tracked railway in middle)
-Section 4: 7,9 and 6,10 <-> 5,11 and 4,13 (one-tracked railway to the left)
-Section 5: 1,11 <-> 14,11 one of the tracks to the lower station)
-
-
-The maximum speed of our solution that we guarantee works is 15. The reason for this is simply that some sensors are located too close to switches.
-
-We tested our solution by running multiple instances of the program at different speeds, and with a faster simulation speed than the default. We also tested our program by simulating corner cases, we manually placed train at sections where they normally would not start, with extremely slow and fast speed.
+We need 6 condition variables, one for every monitor (and one monitor for every critical section). Each section needs to be able to make trains wait and also signal that it is okay to enter.
