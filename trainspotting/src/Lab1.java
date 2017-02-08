@@ -208,8 +208,8 @@ public class Lab1 {
                             } else {
                                 leaveSection(2);
                             }
-
                         }
+                        
                         if ((sEvent.getXpos() == 19 && sEvent.getYpos() == 7)) {
                             if (headingNorth) {
                                 enterAtTrackSplit(0, 17, 7, tsi.SWITCH_RIGHT, tsi.SWITCH_LEFT);

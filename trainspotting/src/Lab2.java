@@ -3,8 +3,10 @@ import TSim.SensorEvent;
 import TSim.TSimInterface;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
 
 public class Lab2 {
@@ -26,6 +28,9 @@ public class Lab2 {
         train2.start();
     }
 
+    /**
+     * A monitor
+     */
     private class SectionMonitor {
 
     	private boolean blocked;
@@ -37,8 +42,11 @@ public class Lab2 {
     		cond = lock.newCondition();
     	}
     	
+    	/**
+    	 * Enter a critical section, if blocked, thread will wait.
+    	 * @throws InterruptedException Fails to wait.
+    	 */
     	public void enter() throws InterruptedException {
-    		
     		lock.lock();
     		if (blocked) {
     			cond.await();
@@ -47,41 +55,29 @@ public class Lab2 {
     		lock.unlock();
     	}
     	
+    	/**
+    	 * Try entering a critical section.
+    	 * @return if entered
+    	 */
     	public boolean tryEnter() {
     		lock.lock();
     		if (!blocked) {
     			blocked = true;
+    			lock.unlock();
+    			return true;
     		}
     		lock.unlock();
-    		return blocked;
+    		return false;
     	}
     	
+    	/**
+    	 * Leave a critical section.
+    	 */
     	public void leave() {
     		lock.lock();
     		blocked = false;
-    		
+    		cond.signal();
     		lock.unlock();
-    	}
-    }
-    
-    private class ConditionVar implements Condition {
-    	
-    	Queue q;
-    	
-    	public ConditionVar(){
-    		q = new LinkedList<>();
-    	}
-    	
-    	public void await(){
-    		
-    		
-    	}
-    	
-    	public void signal(){
-    		
-    	}
-    	public boolean isEmpty(){
-    		
     	}
     }
     
@@ -176,7 +172,7 @@ public class Lab2 {
                             if (!headingNorth) {
                                 changeDir();
                             } else {
-                                if (!mon[5].blocked) { //fix to lock initial semaphore
+                                if (!mon[5].blocked) { //fix to enter initial monitor
                                     mon[5].enter();
                                 }
                             }
@@ -192,7 +188,7 @@ public class Lab2 {
                             if (headingNorth) {
                                 changeDir();
                             } else {
-                                if (!mon[0].blocked) { //fix to lock initial semaphore
+                                if (!mon[0].blocked) { //fix to enter initial monitor
                                     mon[0].enter();
                                 }
                             }
@@ -287,11 +283,11 @@ public class Lab2 {
         }
 
         /**
-         * Train enters a critical section. Will acquire the semaphore corresponding to the section.
+         * Train enters a critical section. Will enter the monitor corresponding to the section.
          *
-         * @param sectionId The id of the section/semaphore
+         * @param sectionId 			The id of the section/monitor
          * @throws CommandException     Fails to set speed
-         * @throws InterruptedException Fails to acquire semaphore
+         * @throws InterruptedException Fails to enter monitor
          */
         private void enterSection(int sectionId) throws CommandException, InterruptedException {
             tsi.setSpeed(id, 0);
@@ -301,14 +297,14 @@ public class Lab2 {
 
         /**
          * Train enters a critical section and changes orientation of a switch.
-         * Will acquire the semaphore corresponding to the section.
+         * Will enter the monitor corresponding to the section.
          *
-         * @param sectionId         The id of the section/semaphore
-         * @param x                 The x-position of the switch
-         * @param y                 The y-position of the switch
-         * @param switchOrientation Orientation of the switch
+         * @param sectionId         	The id of the section/monitor
+         * @param x                 	The x-position of the switch
+         * @param y                 	The y-position of the switch
+         * @param switchOrientation 	Orientation of the switch
          * @throws CommandException     Fails to set speed or switch
-         * @throws InterruptedException Fails to acquire semaphore
+         * @throws InterruptedException Fails to enter monitor
          */
         private void enterSectionAndSwitch(int sectionId, int x, int y, int switchOrientation) throws CommandException, InterruptedException {
             enterSection(sectionId);
@@ -317,17 +313,17 @@ public class Lab2 {
 
         /**
          * Train needs to choose track depending on if one of the tracks are occupied.
-         * Will acquire the semaphore corresponding to the section if the default track is availible.
+         * Will enter the monitor corresponding to the section if the default track is availible.
          *
-         * @param sectionId          The id of the section/semaphore
+         * @param sectionId          The id of the section/monitor
          * @param x                  The x-position of the switch
          * @param y                  The y-position of the switch
          * @param firstChoiceSwitch  Orientation of switch if train is allowed to travel the default way
          * @param secondChoiceSwitch Orientation of switch otherwise
-         * @throws CommandException Fails to set switch
+         * @throws CommandException  Fails to set switch
          */
         private void enterAtTrackSplit(int sectionId, int x, int y, int firstChoiceSwitch, int secondChoiceSwitch) throws CommandException {
-            if (mon[sectionId].tryEnter()) {
+            if (mon[sectionId].tryEnter()) {        	
                 tsi.setSwitch(x, y, firstChoiceSwitch);
             } else {
                 tsi.setSwitch(x, y, secondChoiceSwitch);
@@ -335,9 +331,9 @@ public class Lab2 {
         }
 
         /**
-         * Train leaves section. Will release the semaphore corresponding to the section.
+         * Train leaves section. Will leave the monitor corresponding to the section.
          *
-         * @param sectionId The id of the section/semaphore
+         * @param sectionId The id of the section/monitor
          */
         private void leaveSection(int sectionId) {
         	mon[sectionId].leave();
