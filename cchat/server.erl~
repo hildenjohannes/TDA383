@@ -19,8 +19,10 @@ initial_state(ServerName) ->
 %% and NewState is the new state of the server.
 
 handle(St, Request) ->
-    %receive Msg -> io:format("Revieced: ~p~n", [Msg]) end,
+    receive Msg -> io:format("Revieced: ~p~n", [Msg]) end,
     
+
+
 
     io:fwrite("Server received: ~p~n", [Request]),
     Response = "hi!",

@@ -50,14 +50,17 @@ handle(St, {msg_from_GUI, Channel, Msg}) ->
 
 %% Get current nick
 handle(St, whoami) ->
-    % {reply, "nick", St} ;
-    {reply, {error, not_implemented, "Not implemented"}, St} ;
+    {reply, "nick", St} ;
+   % {reply, {error, not_implemented, "Not implemented"}, St} ;
 
 %% Change nick
 handle(St, {nick, Nick}) ->
-    
-    %{reply, ok, St} ;
-    {reply, {error, not_implemented, "Not implemented"}, St} ;
+    %shire ! {cha,"boop"},
+    Pid = spawn(fun() -> handle(St, {nick,Nick}) end),
+    %Reply = server:handle(St, nick),
+    %io:fwrite("Name: ~p~n", [list_to_atom(Nick)]),
+    {reply, ok, St} ;
+    %{reply, {error, not_implemented, "Not implemented"}, St} ;
 
 %% Incoming message
 handle(St = #client_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
