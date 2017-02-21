@@ -48,7 +48,7 @@ public class Lab2 {
     	 */
     	public void enter() throws InterruptedException {
     		lock.lock();
-    		if (blocked) {
+    		while (blocked) {
     			cond.await();
     		}
     		blocked = true;
@@ -89,11 +89,13 @@ public class Lab2 {
         private int id;
         private int speed;
         private TSimInterface tsi = TSimInterface.getInstance();
+        private boolean[] hasMonitor; //trains need to know what monitors they are holding
         private boolean headingNorth; //direction of train
 
         public Train(int id, int speed) {
             this.id = id;
             this.speed = speed;
+            this.hasMonitor = new boolean[6];
 
             if (id == 1) {
                 headingNorth = false;
@@ -174,6 +176,7 @@ public class Lab2 {
                             } else {
                                 if (!mon[5].blocked) { //fix to enter initial monitor
                                     mon[5].enter();
+                                    hasMonitor[5] = true;
                                 }
                             }
                         }
@@ -190,6 +193,7 @@ public class Lab2 {
                             } else {
                                 if (!mon[0].blocked) { //fix to enter initial monitor
                                     mon[0].enter();
+                                    hasMonitor[0] = true;
                                 }
                             }
                         }
@@ -293,6 +297,7 @@ public class Lab2 {
             tsi.setSpeed(id, 0);
             mon[sectionId].enter();
             tsi.setSpeed(id, speed);
+            hasMonitor[sectionId] = true;
         }
 
         /**
@@ -323,7 +328,8 @@ public class Lab2 {
          * @throws CommandException  Fails to set switch
          */
         private void enterAtTrackSplit(int sectionId, int x, int y, int firstChoiceSwitch, int secondChoiceSwitch) throws CommandException {
-            if (mon[sectionId].tryEnter()) {        	
+            if (mon[sectionId].tryEnter()) {       
+            	hasMonitor[sectionId] = true;
                 tsi.setSwitch(x, y, firstChoiceSwitch);
             } else {
                 tsi.setSwitch(x, y, secondChoiceSwitch);
@@ -336,7 +342,10 @@ public class Lab2 {
          * @param sectionId The id of the section/monitor
          */
         private void leaveSection(int sectionId) {
-        	mon[sectionId].leave();
+        	if (hasMonitor[sectionId]) {
+                mon[sectionId].leave();
+                hasMonitor[sectionId] = false;
+            }
             
         }
 
