@@ -7,7 +7,7 @@
 
 %% Produce initial state
 initial_state(Nick, GUIName) ->
-    #client_st { gui = GUIName }.
+    #client_st { gui = GUIName, name = Nick }.
 
 %% ---------------------------------------------------------------------------
 
@@ -50,16 +50,15 @@ handle(St, {msg_from_GUI, Channel, Msg}) ->
 
 %% Get current nick
 handle(St, whoami) ->
+    io:fwrite("St: ~p~n", [St]),
     {reply, "nick", St} ;
    % {reply, {error, not_implemented, "Not implemented"}, St} ;
 
 %% Change nick
 handle(St, {nick, Nick}) ->
-    %shire ! {cha,"boop"},
-    Pid = spawn(fun() -> handle(St, {nick,Nick}) end),
-    %Reply = server:handle(St, nick),
-    %io:fwrite("Name: ~p~n", [list_to_atom(Nick)]),
-    {reply, ok, St} ;
+    NewSt = St#client_st{name=list_to_atom(Nick)},
+    server:handle(NewSt,{nick,Nick}),
+    {reply, ok, NewSt} ;
     %{reply, {error, not_implemented, "Not implemented"}, St} ;
 
 %% Incoming message
