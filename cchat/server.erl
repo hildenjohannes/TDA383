@@ -31,7 +31,7 @@ handle(St, {nick,Nick}) ->
     io:fwrite("Nick set to: ~p~n", [Response]),
     {reply, Response, St};
 
-handle(St, whoami) ->  
+handle(St, whoami) ->
     Response = "japp",
     io:fwrite("Your nick: ~p~n", [Response]),
     {reply, Response, St};
@@ -47,8 +47,17 @@ handle(St, {connect, Pid, Name}) ->
 handle(St, {disconnect, Pid}) ->
     NewUsers = deleteUser(St#server_st.users, Pid),
     NewSt = St#server_st{users = NewUsers},
+    {reply, ok, NewSt};
+
+handle(St, {join, Channel, Pid}) ->
+    OldUsers = St#server_st.users,
+    io:fwrite("Users: ~p~n", [OldUsers]),
+    %get user with pid=Pid
+    {[User | _], Rest} = lists:partition(fun({_,P,_,_}) -> Pid == P end, OldUsers),
+    io:fwrite("User found: ~p~n", [User]),
+    %add channel to list of channels
+    UpdatedChannels = [Channel | User#user.channel],
+    UpdatedUser = User#user{channel = UpdatedChannels},
+    NewSt = St#server_st{users = [UpdatedUser | Rest]},
+    io:fwrite("NewSt: ~p~n", [NewSt]),
     {reply, ok, NewSt}.
-
-
-
-
