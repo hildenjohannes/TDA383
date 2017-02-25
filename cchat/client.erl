@@ -36,7 +36,7 @@ handle(St, disconnect) ->
 
 % Join channel
 handle(St, {join, Channel}) ->
-    
+
     {reply, ok, St} ;
 
 %% Leave channel
@@ -46,13 +46,13 @@ handle(St, {leave, Channel}) ->
 
 % Sending messages
 handle(St, {msg_from_GUI, Channel, Msg}) ->
-    
+
     {reply, ok, St} ;
 
 %% Get current nick
 handle(St, whoami) ->
-    io:fwrite("St: ~p~n", [St]),
-    {reply, "nick", St} ;
+    Name = St#client_st.name,
+    {reply, Name, St} ;
 
 %% Change nick
 handle(St, {nick, Nick}) ->
