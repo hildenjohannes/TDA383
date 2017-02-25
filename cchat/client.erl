@@ -37,7 +37,7 @@ handle(St, disconnect) ->
 % Join channel
 handle(St, {join, Channel}) ->
     Data = {join, Channel, self()},
-    Response = genserver:request(ServerAtom, Data),
+    Response = genserver:request(St#client_st.server, Data),
     {reply, ok, St} ;
 
 %% Leave channel
