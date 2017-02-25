@@ -47,7 +47,8 @@ handle(St, {leave, Channel}) ->
 
 % Sending messages
 handle(St, {msg_from_GUI, Channel, Msg}) ->
-
+    Data = {msg_from_GUI, Channel, St#client_st.name, Msg, self()},
+    Response = genserver:request(St#client_st.server, Data),
     {reply, ok, St} ;
 
 %% Get current nick
