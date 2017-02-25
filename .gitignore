@@ -3,3 +3,6 @@
 *.iml
 *.idea
 *.beam
+
+cchat/lex.erl
+cchat/grm.erl
