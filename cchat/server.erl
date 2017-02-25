@@ -60,4 +60,20 @@ handle(St, {join, Channel, Pid}) ->
     UpdatedUser = User#user{channel = UpdatedChannels},
     NewSt = St#server_st{users = [UpdatedUser | Rest]},
     io:fwrite("NewSt: ~p~n", [NewSt]),
-    {reply, ok, NewSt}.
+    {reply, ok, NewSt};
+
+handle(St, {msg_from_GUI, Channel, Name, Msg, Pid}) ->
+    io:fwrite("Server trying to send msg: ~p~n", [Msg]),
+
+    %Getting all users connected to the Channel
+    Pred = fun(ChannelList) -> (lists:any(fun(X) -> X == Channel end,ChannelList)) end,
+    Pred2 = fun(Usr) -> Pred(Usr#user.channel) end,
+    UsersConnected = lists:filter(Pred2,St#server_st.users),
+
+    %Remove the User who's sending from the list
+    Users = lists:filter(fun(Usr)->Usr#user.pid /= Pid end, UsersConnected),
+
+    %Start a process sending a message for each User who should receive
+    Pred3 = fun(Usr) -> spawn(genserver, request, [Usr#user.pid, {incoming_msg, Channel, Name, Msg}]) end,
+    lists:map(Pred3,Users),
+    {reply, ok, St}.
