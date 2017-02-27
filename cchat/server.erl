@@ -37,30 +37,53 @@ handle(St, whoami) ->
     {reply, Response, St};
 
 handle(St, {connect, Pid, Name}) ->
-    OldUsers = St#server_st.users,
-    NewUser = #user{pid = Pid, name = Name},
-    io:fwrite("Old: ~p~n", [OldUsers]),
-    io:fwrite("New: ~p~n", [NewUser]),
-    NewSt = St#server_st{users = [NewUser | OldUsers]},
-    {reply, ok, NewSt};
+    case lists:filter(fun({_,_,N,_}) -> N == Name end, St#server_st.users) of
+    [] ->
+      OldUsers = St#server_st.users,
+      NewUser = #user{pid = Pid, name = Name},
+      NewSt = St#server_st{users = [NewUser | OldUsers]},
+      {reply, ok, NewSt};
+    _ -> 
+      {reply, {error, nick_taken, "Your nick is already taken, change nick."}, St}
+    end;
 
 handle(St, {disconnect, Pid}) ->
-    NewUsers = deleteUser(St#server_st.users, Pid),
-    NewSt = St#server_st{users = NewUsers},
-    {reply, ok, NewSt};
+    [User | _] = lists:filter(fun({_,P,_,_}) -> Pid == P end, St#server_st.users),
+    case User#user.channel of
+         [] -> NewUsers = deleteUser(St#server_st.users, Pid),
+               NewSt = St#server_st{users = NewUsers},
+               {reply, ok, NewSt};
+          _ -> {reply, {error, leave_channels_first, "You have to leave all channels before disconnecting."}, St}
+    end;
+
+
+handle(St, {leave, Channel, Pid}) ->
+    OldUsers = St#server_st.users,
+    %get user with pid=Pid
+    {[User | _], Rest} = lists:partition(fun({_,P,_,_}) -> Pid == P end, OldUsers),
+    %add channel to list of channels
+    case lists:partition(fun(X) -> X == Channel end, User#user.channel) of
+    {[],_} -> {reply, {error, user_not_joined, "You are not in this channel"}, St};
+    {_, OtherChannels} -> 
+       UpdatedUser = User#user{channel = OtherChannels},
+       NewSt = St#server_st{users = [UpdatedUser | Rest]},
+       {reply, ok, NewSt}
+    end;
+
 
 handle(St, {join, Channel, Pid}) ->
     OldUsers = St#server_st.users,
-    io:fwrite("Users: ~p~n", [OldUsers]),
     %get user with pid=Pid
     {[User | _], Rest} = lists:partition(fun({_,P,_,_}) -> Pid == P end, OldUsers),
-    io:fwrite("User found: ~p~n", [User]),
     %add channel to list of channels
-    UpdatedChannels = [Channel | User#user.channel],
-    UpdatedUser = User#user{channel = UpdatedChannels},
-    NewSt = St#server_st{users = [UpdatedUser | Rest]},
-    io:fwrite("NewSt: ~p~n", [NewSt]),
-    {reply, ok, NewSt};
+    case lists:filter(fun(X) -> X == Channel end, User#user.channel) of
+    [] -> 
+      UpdatedChannels = [Channel | User#user.channel],
+      UpdatedUser = User#user{channel = UpdatedChannels},
+      NewSt = St#server_st{users = [UpdatedUser | Rest]},
+      {reply, ok, NewSt};
+    _ -> {reply, {error, user_already_joined, "You are already in this channel"}, St}
+    end;
 
 handle(St, {msg_from_GUI, Channel, Name, Msg, Pid}) ->
     io:fwrite("Server trying to send msg: ~p~n", [Msg]),
@@ -71,9 +94,11 @@ handle(St, {msg_from_GUI, Channel, Name, Msg, Pid}) ->
     UsersConnected = lists:filter(Pred2,St#server_st.users),
 
     %Remove the User who's sending from the list
-    Users = lists:filter(fun(Usr)->Usr#user.pid /= Pid end, UsersConnected),
-
-    %Start a process sending a message for each User who should receive
-    Pred3 = fun(Usr) -> spawn(genserver, request, [Usr#user.pid, {incoming_msg, Channel, Name, Msg}]) end,
-    lists:map(Pred3,Users),
-    {reply, ok, St}.
+    case lists:partition(fun(Usr)->Usr#user.pid == Pid end, UsersConnected) of
+    {[], _} -> {reply, {error, user_not_joined, "You are not connected to this channel"}, St} ;
+    {_, Users} ->
+      %Start a process sending a message for each User who should receive
+      Pred3 = fun(Usr) -> spawn(genserver, request, [Usr#user.pid, {incoming_msg, Channel, Name, Msg}]) end,
+      lists:map(Pred3,Users),
+      {reply, ok, St}
+     end.
