@@ -18,26 +18,8 @@ initial_state(ServerName) ->
 %% {reply, Reply, NewState}, where Reply is the reply to be sent to the client
 %% and NewState is the new state of the server.
 
-deleteUser(List, Pid) ->
-    case List of
-    [] -> [];
-    [{P,_,_}|T] when P == Pid -> deleteUser(T,Pid);
-    [F|T] -> [F | deleteUser(T,Pid)]
-    end.
-
-
-handle(St, {nick,Nick}) ->
-    Response = Nick,
-    io:fwrite("Nick set to: ~p~n", [Response]),
-    {reply, Response, St};
-
-handle(St, whoami) ->
-    Response = "japp",
-    io:fwrite("Your nick: ~p~n", [Response]),
-    {reply, Response, St};
-
 handle(St, {connect, Pid, Name}) ->
-    case lists:filter(fun({_,_,N,_}) -> N == Name end, St#server_st.users) of
+    case lists:filter(fun({_,_,N}) -> N == Name end, St#server_st.users) of
     [] ->
       OldUsers = St#server_st.users,
       NewUser = #user{pid = Pid, name = Name},
@@ -48,9 +30,11 @@ handle(St, {connect, Pid, Name}) ->
     end;
 
 handle(St, {disconnect, Pid}) ->
-    [User | _] = lists:filter(fun({_,P,_,_}) -> Pid == P end, St#server_st.users),
-    case User#user.channel of
-         [] -> NewUsers = deleteUser(St#server_st.users, Pid),
+    Pred = fun(PidList) -> (lists:any(fun(X) -> X == Pid end,PidList)) end,
+    Pred2 = fun(Chn) -> Pred(Chn#channel.user_pids) end,
+    ChannelsConnected = lists:filter(Pred2,St#server_st.channels),
+    case ChannelsConnected of
+         [] -> NewUsers = lists:filter(fun({_,P,_}) -> Pid /= P end, St#server_st.users),
                NewSt = St#server_st{users = NewUsers},
                {reply, ok, NewSt};
           _ -> {reply, {error, leave_channels_first, "You have to leave all channels before disconnecting."}, St}
@@ -58,47 +42,50 @@ handle(St, {disconnect, Pid}) ->
 
 
 handle(St, {leave, Channel, Pid}) ->
-    OldUsers = St#server_st.users,
-    %get user with pid=Pid
-    {[User | _], Rest} = lists:partition(fun({_,P,_,_}) -> Pid == P end, OldUsers),
-    %add channel to list of channels
-    case lists:partition(fun(X) -> X == Channel end, User#user.channel) of
-    {[],_} -> {reply, {error, user_not_joined, "You are not in this channel"}, St};
-    {_, OtherChannels} -> 
-       UpdatedUser = User#user{channel = OtherChannels},
-       NewSt = St#server_st{users = [UpdatedUser | Rest]},
-       {reply, ok, NewSt}
+    case lists:partition(fun(X) -> X#channel.name == Channel end, St#server_st.channels) of
+    {[],_} -> %Channel does not exist
+         {reply, {error, user_not_joined, "This channel does not exist"}, St};
+    {[Ch | _], Rest} -> 
+         case lists:partition(fun(X) -> X == Pid end, Ch#channel.user_pids) of
+         {[],_} -> %Channel exists, user not joined
+            {reply, {error, user_not_joined, "You are not in this channel"}, St};
+         {_,UserPids}-> %Channel exists, user has joined
+            NewChannel = Ch#channel{user_pids = UserPids},
+            NewSt = St#server_st{channels = [NewChannel | Rest]},
+            {reply, ok, NewSt}
+         end
     end;
 
-
 handle(St, {join, Channel, Pid}) ->
-    OldUsers = St#server_st.users,
-    %get user with pid=Pid
-    {[User | _], Rest} = lists:partition(fun({_,P,_,_}) -> Pid == P end, OldUsers),
-    %add channel to list of channels
-    case lists:filter(fun(X) -> X == Channel end, User#user.channel) of
-    [] -> 
-      UpdatedChannels = [Channel | User#user.channel],
-      UpdatedUser = User#user{channel = UpdatedChannels},
-      NewSt = St#server_st{users = [UpdatedUser | Rest]},
+    case lists:partition(fun(X) -> X#channel.name == Channel end, St#server_st.channels) of
+    {[],_} -> %Channel does not exist on server
+      NewChannel = #channel{ name = Channel, user_pids=[Pid] },
+      UpdatedChannels = [NewChannel | St#server_st.channels],
+      NewSt = St#server_st{channels = UpdatedChannels},
       {reply, ok, NewSt};
-    _ -> {reply, {error, user_already_joined, "You are already in this channel"}, St}
+    {[Ch | _], Rest} ->
+      case lists:filter(fun(X) -> X == Pid end, Ch#channel.user_pids) of
+      [] -> %Channel exists, user not joined
+         NewChannel = Ch#channel{user_pids = [Pid | Ch#channel.user_pids]},
+         NewSt = St#server_st{channels = [NewChannel | Rest]},
+         {reply, ok, NewSt};
+      _ -> %Channel exists, user already joined
+         {reply, {error, user_already_joined, "You are already in this channel"}, St}
+      end
     end;
 
 handle(St, {msg_from_GUI, Channel, Name, Msg, Pid}) ->
     io:fwrite("Server trying to send msg: ~p~n", [Msg]),
-
-    %Getting all users connected to the Channel
-    Pred = fun(ChannelList) -> (lists:any(fun(X) -> X == Channel end,ChannelList)) end,
-    Pred2 = fun(Usr) -> Pred(Usr#user.channel) end,
-    UsersConnected = lists:filter(Pred2,St#server_st.users),
-
-    %Remove the User who's sending from the list
-    case lists:partition(fun(Usr)->Usr#user.pid == Pid end, UsersConnected) of
-    {[], _} -> {reply, {error, user_not_joined, "You are not connected to this channel"}, St} ;
-    {_, Users} ->
-      %Start a process sending a message for each User who should receive
-      Pred3 = fun(Usr) -> spawn(genserver, request, [Usr#user.pid, {incoming_msg, Channel, Name, Msg}]) end,
-      lists:map(Pred3,Users),
-      {reply, ok, St}
+    case lists:filter(fun(X) -> X#channel.name == Channel end, St#server_st.channels) of
+    [] -> %Channel does not exist
+        {reply, {error, user_not_joined, "This channel does not exist"}, St} ;
+    [Ch | _] ->
+        case lists:partition(fun(X) -> X == Pid end, Ch#channel.user_pids) of
+        {[], _} -> %Channel exist, user has not joined
+           {reply, {error, user_not_joined, "You are not connected to this channel"}, St};
+        {_, Receivers} -> 
+           Pred = fun(P) -> spawn(genserver, request, [P, {incoming_msg, Channel, Name, Msg}]) end,
+           lists:map(Pred,Receivers),
+           {reply, ok, St}
+        end
      end.
