@@ -21,9 +21,9 @@ initial_state(Nick, GUIName) ->
 %% Connect to server
 handle(St, {connect, Server}) ->
     Data = {connect, self(), St#client_st.name},
-    case St#client_st.server of 
+    case St#client_st.server of
     undefined ->
-       ServerAtom = list_to_atom(Server), 
+       ServerAtom = list_to_atom(Server),
        case catch(genserver:request(ServerAtom, Data)) of
         {'EXIT', _} ->
           {reply, {error, server_not_reached, "There is no server active with that name"}, St} ;
@@ -38,19 +38,19 @@ handle(St, {connect, Server}) ->
 
 %% Disconnect from server
 handle(St, disconnect) ->
-    case St#client_st.server of 
+    case St#client_st.server of
     undefined -> {reply, {error, user_not_connected, "You are not connected to a server."}, St};
-    ServerAtom -> 
+    ServerAtom ->
        Data = {disconnect, self()},
        case catch(genserver:request(ServerAtom, Data)) of
        {'EXIT', _} ->
           {reply, {error, server_not_reached, "There is no server active with that name"}, St} ;
-       Response -> 
+       Response ->
           case Response of
           ok -> NewSt = St#client_st{server=undefined},
                         {reply, Response, NewSt};
           _ -> {reply, Response, St}
-          end 
+          end
        end
     end;
 
@@ -58,6 +58,10 @@ handle(St, disconnect) ->
 handle(St, {join, Channel}) ->
     Data = {join, Channel, self()},
     Response = genserver:request(St#client_st.server, Data),
+
+
+
+
     {reply, Response, St} ;
 
 %% Leave channel
@@ -68,8 +72,13 @@ handle(St, {leave, Channel}) ->
 
 % Sending messages
 handle(St, {msg_from_GUI, Channel, Msg}) ->
-    Data = {msg_from_GUI, Channel, St#client_st.name, Msg, self()},
-    Response = genserver:request(St#client_st.server, Data),
+    %Data = {msg_from_GUI, Channel, St#client_st.name, Msg, self()},
+    %Response = genserver:request(St#client_st.server, Data),
+
+    %let channel check if user is connected
+    ChannelAtom = list_to_atom(Channel),
+    Response = genserver:request(ChannelAtom, {send, St#client_st.name, Msg, self()}),
+
     {reply, Response, St} ;
 
 %% Get current nick
@@ -79,8 +88,8 @@ handle(St, whoami) ->
 
 %% Change nick
 handle(St, {nick, Nick}) ->
-    case St#client_st.server of 
-    undefined -> 
+    case St#client_st.server of
+    undefined ->
       NewSt = St#client_st{name=Nick},
       {reply, ok, NewSt} ;
     _ ->
