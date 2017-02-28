@@ -20,8 +20,6 @@ handle(St, {leave, Pid}) ->
 
 handle(St, {send, Name, Msg, Pid}) ->
     case lists:partition(fun(X) -> X == Pid end, St#channel_st.user_pids) of
-    {[], _} -> %User has not joined channel
-       {reply, {error, user_not_joined, "You are not connected to this channel"}, St};
     {_, Receivers} ->
        Pred = fun(P) -> spawn(genserver, request, [P, {incoming_msg, St#channel_st.name, Name, Msg}]) end,
        lists:map(Pred,Receivers),
