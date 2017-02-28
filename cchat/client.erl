@@ -19,10 +19,11 @@ initial_state(Nick, GUIName) ->
 %% requesting process and NewState is the new state of the client.
 
 %% Connect to server
+%  Server: the name of the server
 handle(St, {connect, Server}) ->
     Data = {connect, self(), St#client_st.name},
     case St#client_st.server of
-    undefined ->
+    undefined -> %User not connected to a server - connect to server
        ServerAtom = list_to_atom(Server),
        case catch(genserver:request(ServerAtom, Data)) of
         {'EXIT', _} ->
@@ -33,7 +34,8 @@ handle(St, {connect, Server}) ->
         Response ->
            {reply, Response, St}
         end;
-    _ -> {reply, {error, user_already_connected, "You are already connected to a server"}, St}
+    _ -> %User is connected to a server
+      {reply, {error, user_already_connected, "You are already connected to a server"}, St}
     end;
 
 %% Disconnect from server
@@ -43,7 +45,7 @@ handle(St, disconnect) ->
        {reply, {error, user_not_connected, "You are not connected to a server."}, St};
     ServerAtom ->
        case St#client_st.channels of
-       [] -> %User is not connected to channels, free to leave
+       [] -> %User is not connected to channels, free to leave server
          Data = {disconnect, self()},
          case catch(genserver:request(ServerAtom, Data)) of
          {'EXIT', _} ->
@@ -56,16 +58,14 @@ handle(St, disconnect) ->
        end
     end;
 
-% Join channel
+%% Join channel
+%  Channel: name of channel to join
 handle(St, {join, Channel}) ->
     case lists:filter(fun(X) -> X == Channel end, St#client_st.channels) of
-    [] -> %User has not joined channel
-
-      %Tell server to join channel
+    [] -> %User has not joined channel - tell server to join channel
       Data = {join, Channel, self()},
       Response = genserver:request(St#client_st.server, Data),
-
-      %Adds channel to list
+      %Add channel to list
       NewSt = St#client_st{channels = [Channel | St#client_st.channels]},
       {reply, Response, NewSt};
     _ -> %User has already joined channel
@@ -73,27 +73,27 @@ handle(St, {join, Channel}) ->
     end;
 
 %% Leave channel
+%  Channel: name of channel to leave
 handle(St, {leave, Channel}) ->
     case lists:partition(fun(X) -> X == Channel end, St#client_st.channels) of
     {[],_} -> %User not connected to channel
          {reply, {error, user_not_joined, "You are not in this channel"}, St};
-    {_, Rest} -> %User connected to channel
-
-         %Tell server to leave channel
+    {_, Rest} -> %User connected to channel - tell server to leave channel
          Data = {leave, Channel, self()},
          Response = genserver:request(St#client_st.server, Data),
-
          %Remove channel from list
          NewSt = St#client_st{channels = Rest},
          {reply, Response, NewSt}
     end;
 
-% Sending messages
+%% Sending messages
+%  Channel: name of channel to send message to
+%  Msg: message to send
 handle(St, {msg_from_GUI, Channel, Msg}) ->
     case lists:filter(fun(X) -> X == Channel end, St#client_st.channels) of
     [] -> % User has not joined this channel
       {reply, {error, user_not_joined, "You are not connected to this channel"}, St};
-    _ ->
+    _ -> % User has joined channel - send message
       ChannelAtom = list_to_atom(Channel),
       genserver:request(ChannelAtom, {send, St#client_st.name, Msg, self()}),
       {reply, ok, St}
@@ -105,12 +105,13 @@ handle(St, whoami) ->
     {reply, Name, St} ;
 
 %% Change nick
+%  Nick: nick to change to
 handle(St, {nick, Nick}) ->
     case St#client_st.server of
-    undefined ->
+    undefined -> %User not connected to a server - change nick
       NewSt = St#client_st{name=Nick},
       {reply, ok, NewSt} ;
-    _ ->
+    _ -> %User already connected to a server
       {reply, {error, user_already_connected, "Disconnect from the server before changing nick."}, St}
     end;
 
