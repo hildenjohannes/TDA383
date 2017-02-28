@@ -39,47 +39,65 @@ handle(St, {connect, Server}) ->
 %% Disconnect from server
 handle(St, disconnect) ->
     case St#client_st.server of
-    undefined -> {reply, {error, user_not_connected, "You are not connected to a server."}, St};
+    undefined -> %User is not connected to a server
+       {reply, {error, user_not_connected, "You are not connected to a server."}, St};
     ServerAtom ->
-       Data = {disconnect, self()},
-       case catch(genserver:request(ServerAtom, Data)) of
-       {'EXIT', _} ->
-          {reply, {error, server_not_reached, "There is no server active with that name"}, St} ;
-       Response ->
-          case Response of
-          ok -> NewSt = St#client_st{server=undefined},
-                        {reply, Response, NewSt};
-          _ -> {reply, Response, St}
-          end
+       case St#client_st.channels of
+       [] -> %User is not connected to channels, free to leave
+         Data = {disconnect, self()},
+         case catch(genserver:request(ServerAtom, Data)) of
+         {'EXIT', _} ->
+            {reply, {error, server_not_reached, "There is no server active with that name"}, St} ;
+         _ -> NewSt = St#client_st{server=undefined},
+            {reply, ok, NewSt}
+         end;
+       _  -> %User is connected to channels
+        {reply, {error, leave_channels_first, "You have to leave all channels before disconnecting."}, St}
        end
     end;
 
 % Join channel
 handle(St, {join, Channel}) ->
-    Data = {join, Channel, self()},
-    Response = genserver:request(St#client_st.server, Data),
+    case lists:filter(fun(X) -> X == Channel end, St#client_st.channels) of
+    [] -> %User has not joined channel
 
+      %Tell server to join channel
+      Data = {join, Channel, self()},
+      Response = genserver:request(St#client_st.server, Data),
 
-
-
-    {reply, Response, St} ;
+      %Adds channel to list
+      NewSt = St#client_st{channels = [Channel | St#client_st.channels]},
+      {reply, Response, NewSt};
+    _ -> %User has already joined channel
+      {reply, {error, user_already_joined, "You are already in this channel"}, St}
+    end;
 
 %% Leave channel
 handle(St, {leave, Channel}) ->
-    Data = {leave, Channel, self()},
-    Response = genserver:request(St#client_st.server, Data),
-    {reply, Response, St} ;
+    case lists:partition(fun(X) -> X == Channel end, St#client_st.channels) of
+    {[],_} -> %User not connected to channel
+         {reply, {error, user_not_joined, "You are not in this channel"}, St};
+    {_, Rest} -> %User connected to channel
+
+         %Tell server to leave channel
+         Data = {leave, Channel, self()},
+         Response = genserver:request(St#client_st.server, Data),
+
+         %Remove channel from list
+         NewSt = St#client_st{channels = Rest},
+         {reply, Response, NewSt}
+    end;
 
 % Sending messages
 handle(St, {msg_from_GUI, Channel, Msg}) ->
-    %Data = {msg_from_GUI, Channel, St#client_st.name, Msg, self()},
-    %Response = genserver:request(St#client_st.server, Data),
-
-    %let channel check if user is connected
-    ChannelAtom = list_to_atom(Channel),
-    Response = genserver:request(ChannelAtom, {send, St#client_st.name, Msg, self()}),
-
-    {reply, Response, St} ;
+    case lists:filter(fun(X) -> X == Channel end, St#client_st.channels) of
+    [] -> % User has not joined this channel
+      {reply, {error, user_not_joined, "You are not connected to this channel"}, St};
+    _ ->
+      ChannelAtom = list_to_atom(Channel),
+      genserver:request(ChannelAtom, {send, St#client_st.name, Msg, self()}),
+      {reply, ok, St}
+    end;
 
 %% Get current nick
 handle(St, whoami) ->
