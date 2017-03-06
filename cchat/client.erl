@@ -118,4 +118,11 @@ handle(St, {nick, Nick}) ->
 %% Incoming message
 handle(St = #client_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
     gen_server:call(list_to_atom(GUIName), {msg_to_GUI, Channel, Name++"> "++Msg}),
-    {reply, ok, St}.
+    {reply, ok, St};
+
+%% Do job
+%  Ref: Reference of job
+%  F: Function to do
+%  P: Parameter for function F
+handle(St, {send_job, {Ref, F, P}}) ->
+    {reply, {Ref, F(P)}, St}.
