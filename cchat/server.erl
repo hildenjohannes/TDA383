@@ -66,4 +66,9 @@ handle(St, {join, Channel, Pid}) ->
       ChannelAtom = list_to_atom(Channel),
       genserver:request(ChannelAtom, {join, Pid}),
       {reply, ok, St}
-    end.
+    end;
+
+%% Get pids of clients connected to server
+handle(St, get_pids) ->
+  Pids = lists:map(fun({_,P,_}) -> P end, St#server_st.users),
+  {reply, Pids, St}.
