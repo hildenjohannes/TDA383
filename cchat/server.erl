@@ -18,74 +18,57 @@ initial_state(ServerName) ->
 %% {reply, Reply, NewState}, where Reply is the reply to be sent to the client
 %% and NewState is the new state of the server.
 
+%% Connect to server
+%  Pid: the pid of client process
+%  Name: the name of the user connecting to the server
 handle(St, {connect, Pid, Name}) ->
     case lists:filter(fun({_,_,N}) -> N == Name end, St#server_st.users) of
-    [] ->
-      OldUsers = St#server_st.users,
+    [] -> %Name is not taken on server - add user to server
       NewUser = #user{pid = Pid, name = Name},
-      NewSt = St#server_st{users = [NewUser | OldUsers]},
+      NewSt = St#server_st{users = [NewUser | St#server_st.users]},
       {reply, ok, NewSt};
-    _ -> 
+    _ -> %Name is taken - return error
       {reply, {error, nick_taken, "Your nick is already taken, change nick."}, St}
     end;
 
+%% Disconnect from server
+%  Pid: the pid of client process
 handle(St, {disconnect, Pid}) ->
-    Pred = fun(PidList) -> (lists:any(fun(X) -> X == Pid end,PidList)) end,
-    Pred2 = fun(Chn) -> Pred(Chn#channel.user_pids) end,
-    ChannelsConnected = lists:filter(Pred2,St#server_st.channels),
-    case ChannelsConnected of
-         [] -> NewUsers = lists:filter(fun({_,P,_}) -> Pid /= P end, St#server_st.users),
-               NewSt = St#server_st{users = NewUsers},
-               {reply, ok, NewSt};
-          _ -> {reply, {error, leave_channels_first, "You have to leave all channels before disconnecting."}, St}
-    end;
+    NewUsers = lists:filter(fun({_,P,_}) -> Pid /= P end, St#server_st.users),
+    NewSt = St#server_st{users = NewUsers},
+    {reply, ok, NewSt};
 
-
+%% Leave channel
+%  Channel: the channel to leave
+%  Pid: the pid of client process who want to leave
 handle(St, {leave, Channel, Pid}) ->
-    case lists:partition(fun(X) -> X#channel.name == Channel end, St#server_st.channels) of
+    case lists:partition(fun(X) -> X == Channel end, St#server_st.channels) of
     {[],_} -> %Channel does not exist
          {reply, {error, user_not_joined, "This channel does not exist"}, St};
-    {[Ch | _], Rest} -> 
-         case lists:partition(fun(X) -> X == Pid end, Ch#channel.user_pids) of
-         {[],_} -> %Channel exists, user not joined
-            {reply, {error, user_not_joined, "You are not in this channel"}, St};
-         {_,UserPids}-> %Channel exists, user has joined
-            NewChannel = Ch#channel{user_pids = UserPids},
-            NewSt = St#server_st{channels = [NewChannel | Rest]},
-            {reply, ok, NewSt}
-         end
+    {_, Rest} -> %Channel exists - let user leave channel
+         ChannelAtom = list_to_atom(Channel),
+         genserver:request(ChannelAtom, {leave, Pid}),
+         {reply, ok, St}
     end;
 
+%% Join channel
+%  Channel: the channel to join
+%  Pid: the pid of client process who want to join
 handle(St, {join, Channel, Pid}) ->
-    case lists:partition(fun(X) -> X#channel.name == Channel end, St#server_st.channels) of
-    {[],_} -> %Channel does not exist on server
-      NewChannel = #channel{ name = Channel, user_pids=[Pid] },
-      UpdatedChannels = [NewChannel | St#server_st.channels],
-      NewSt = St#server_st{channels = UpdatedChannels},
+    case lists:partition(fun(X) -> X == Channel end, St#server_st.channels) of
+    {[],_} -> %Channel does not exist on server - create and "start" channel
+      ChannelAtom = list_to_atom(Channel),
+      genserver:start(ChannelAtom, channel:initial_state(Channel, Pid), fun channel:handle/2 ),
+      %Add channel to list
+      NewSt = St#server_st{channels = [Channel | St#server_st.channels]},
       {reply, ok, NewSt};
-    {[Ch | _], Rest} ->
-      case lists:filter(fun(X) -> X == Pid end, Ch#channel.user_pids) of
-      [] -> %Channel exists, user not joined
-         NewChannel = Ch#channel{user_pids = [Pid | Ch#channel.user_pids]},
-         NewSt = St#server_st{channels = [NewChannel | Rest]},
-         {reply, ok, NewSt};
-      _ -> %Channel exists, user already joined
-         {reply, {error, user_already_joined, "You are already in this channel"}, St}
-      end
+    _ -> %Channel exists on server - tell channel to add user
+      ChannelAtom = list_to_atom(Channel),
+      genserver:request(ChannelAtom, {join, Pid}),
+      {reply, ok, St}
     end;
 
-handle(St, {msg_from_GUI, Channel, Name, Msg, Pid}) ->
-    io:fwrite("Server trying to send msg: ~p~n", [Msg]),
-    case lists:filter(fun(X) -> X#channel.name == Channel end, St#server_st.channels) of
-    [] -> %Channel does not exist
-        {reply, {error, user_not_joined, "This channel does not exist"}, St} ;
-    [Ch | _] ->
-        case lists:partition(fun(X) -> X == Pid end, Ch#channel.user_pids) of
-        {[], _} -> %Channel exist, user has not joined
-           {reply, {error, user_not_joined, "You are not connected to this channel"}, St};
-        {_, Receivers} -> 
-           Pred = fun(P) -> spawn(genserver, request, [P, {incoming_msg, Channel, Name, Msg}]) end,
-           lists:map(Pred,Receivers),
-           {reply, ok, St}
-        end
-     end.
+%% Get pids of clients connected to server
+handle(St, get_pids) ->
+  Pids = lists:map(fun({_,P,_}) -> P end, St#server_st.users),
+  {reply, Pids, St}.
