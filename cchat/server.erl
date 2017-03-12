@@ -68,7 +68,34 @@ handle(St, {join, Channel, Pid}) ->
       {reply, ok, St}
     end;
 
-%% Get pids of clients connected to server
-handle(St, get_pids) ->
-  Pids = lists:map(fun({_,P,_}) -> P end, St#server_st.users),
-  {reply, Pids, St}.
+%% Send job to clients
+%  F: Function to calculate
+%  Parameters: Parameters to function
+%  Sender: Sender who will receive result of job
+handle(St, {send_job, F, Parameters, Sender}) ->
+  Pids = lists:map(fun({_,P,_}) -> P end, St#server_st.users), %get connected client pids
+  Tasks = assign_tasks(Pids, Parameters),
+  TasksWithRef = lists:map(fun({Pid,Task}) -> {make_ref(), Pid, Task} end, Tasks), %add ref to each task
+  spawn(fun() ->
+    Me = self(),
+    lists:map(fun({Ref,Pid,Task}) -> %send each job to a client
+      spawn(fun() ->
+        Me ! genserver:request(Pid, {send_job, {Ref, F, Task}}, infinity)
+      end) end, TasksWithRef),
+    Jobs = gather(TasksWithRef),
+    Sender ! Jobs
+  end),
+  {reply, ok, St}.
+
+%% Gather all jobs done by clients
+%  TasksWithRef: Tasks with reference
+gather(TasksWithRef) ->
+  [receive {Ref, Result} -> Result end || {Ref, _, _} <- TasksWithRef].
+
+%% Assign tasks to users
+%  Users: List of pids of clients
+%  Tasks: List of tasks to do
+assign_tasks([], _) -> [] ;
+assign_tasks(Users, Tasks) ->
+  [  {lists:nth(((N-1) rem length(Users)) + 1, Users), Task}
+  || {N,Task} <- lists:zip(lists:seq(1,length(Tasks)), Tasks) ].
